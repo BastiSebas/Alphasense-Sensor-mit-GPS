@@ -77,10 +77,11 @@ Adafruit_ADS1115 ads1015(0x4A);
 
 // Umrechnung der 16Bit Werte des ADS1115 mit dem entsprechenden GAIN abhängigen Faktor
 float Umrechnungsfaktor;
+
 String Daten, serverResponse;
 
-char incomingChar;
-int  gpsUpdated=0;
+char incomingChar; // Dummy variable um Serverresponse zu lesen, aufs Display auszugeben und ggf. auf Serial auszugeben.
+int  gpsIsUpdated=0,gpsIsValid=0,gpsifTriggered=0, gpsAge=0, gpsSpeed =0; // Debugvariablen fuer das GPS
 
 float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
 float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
@@ -100,6 +101,15 @@ float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 //     }
 //   }
 
+void color(String color){  // fuer schnellen Farbwechsel
+  if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+  if (color == "green") tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
+  if (color == "yellow") tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+  if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
+  if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
+}
+
+void linefeed(){tft.println("");} // eine Leerzeile auf dem Display erzeugen
 
 float getUmrechnungsfaktor(){
   float Faktor;
@@ -217,7 +227,8 @@ void Upload(String Uploadstring){
   Serial.println();
   client.stop();
 }
-void updatedisplay(){
+
+void updateDisplay(){
 
     String whiteSpace = "    ";
     //tft.fillScreen(ILI9341_BLACK); // clearscreen
@@ -225,26 +236,36 @@ void updatedisplay(){
     tft.setCursor(0,0);
 
     //Connection Status
-    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    color("yellow");
     tft.println("Connection-Status");
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-    tft.print("conState: "); tft.println(conState + whiteSpace);
+    color("white");
+    tft.print("Uplink: ");
+    if(conState == 1 ){ color("green"); tft.println("Connected" + whiteSpace); color("white");}
+    else {color("red"); tft.println("Disconnected" + whiteSpace); color("white");}
+    linefeed();
 
     // GPS-location
-    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    color("yellow");
     tft.println("GPS-location");
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    color("white");
+    tft.print("Location: ");
+    if(gpsAge < 10000){ color("green"); tft.println("fixed" + whiteSpace); color("white");}
+    else {color("red"); tft.println("not fixed" + whiteSpace); color("white");}
+
     tft.print("lon: "); tft.println(longitude + whiteSpace);
     tft.print("lat: "); tft.println(latitude + whiteSpace);
     tft.print("#: "); tft.println(Geohash + whiteSpace);
-    //tft.print("isUpdated: "); tft.println(gps.location.isUpdated() + whiteSpace);
-    tft.print("isValid: "); tft.println(gps.location.isValid() + whiteSpace);
-    tft.print("gpsUpdated: "); tft.println(gpsUpdated + whiteSpace);
+    tft.print("gpsIsUpdated: "); tft.println(gpsIsUpdated + whiteSpace);
+    tft.print("gpsIsValid: "); tft.println(gpsIsValid + whiteSpace);
+    tft.print("gpsAge: "); tft.println(gpsAge + whiteSpace);
+    tft.print("gpsifTriggered: "); tft.println(gpsifTriggered + whiteSpace);
+    tft.print("gpsSpeed: "); tft.println(gpsSpeed + whiteSpace);
+    linefeed();
 
     // adc values
-    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    color("yellow");
     tft.println("ADC-values");
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    color("white");
     tft.print("adc0: "); tft.println(adc0 + whiteSpace);
     tft.print("adc1: "); tft.println(adc1 + whiteSpace);
     tft.print("adc2: "); tft.println(adc2 + whiteSpace);
@@ -252,19 +273,20 @@ void updatedisplay(){
     tft.print("adc0_AE: "); tft.println(adc0_AE + whiteSpace);
     tft.print("adc1_AE: "); tft.println(adc1_AE + whiteSpace);
     tft.print("adc2_AE: "); tft.println(adc2_AE + whiteSpace);
+    linefeed();
 
     // Data String
-    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    color("yellow");
     tft.println("Data String");
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    color("white");
     tft.print("Data: "); tft.println(Daten + whiteSpace + whiteSpace);
-
+    linefeed();
     // serverResponse
-    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    color("yellow");
     tft.println("Server Response");
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    color("white");
     tft.print("serverResponse: "); tft.println(serverResponse + whiteSpace);
-
+    linefeed();
 }
 void setup() {
   Serial.begin(9600);
@@ -302,16 +324,20 @@ void setup() {
 }
 
 void loop() {
-gpsUpdated = 0;
 
+  gpsifTriggered = 0;
   while (Serial.available()){
     gps.encode(Serial.read());
+    gpsIsUpdated   = gps.location.isUpdated();
+    gpsIsValid     = gps.location.isValid();
+    gpsAge         = gps.location.age();
+
     if (gps.location.isValid()){
       latitude = String(gps.location.lat(),6);
       longitude = String(gps.location.lng(),6);
       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
       Position = "geohash="+ Geohash + " lat=" + latitude + ",lng=" + longitude;
-      gpsUpdated = 1;
+      gpsifTriggered = 1;
     }
   }
 
@@ -319,5 +345,5 @@ gpsUpdated = 0;
   Daten = Messung(Position);
   //tft.println(Daten);
   Upload(Daten);
-  updatedisplay();
+  updateDisplay();
 }
