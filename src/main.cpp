@@ -44,8 +44,8 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC); //, TFT_MOSI, TFT_CLK);
 //Adafruit_SSD1306 tft(LED_BUILTIN);
 
 // Config Messung
-const int MessInterval = 5000; // Zeit in ms zwischen den einzelnen gemittelten Messwerten
-const int Messwerte_Mittel = 100; // Anzahl der Messungen, die zu einem einzelnen Messwert gemittelt werden
+const int MessInterval = 2000; // Zeit in ms zwischen den einzelnen gemittelten Messwerten
+const int Messwerte_Mittel = 10; // Anzahl der Messungen, die zu einem einzelnen Messwert gemittelt werden
 const int MessDelay = MessInterval / Messwerte_Mittel; /* Pause zwischen Messungen, die zu einem Messwert gemittelt werden -> alle "MessDelay" ms ein Messwert,
 bis Messwerte_Mittel mal gemessen wurde, dann wird ein Mittelwert gebildet und ausgegeben. */
 unsigned long time;
@@ -64,6 +64,7 @@ const char* InfluxDB_Server_IP = "130.149.67.141";
 const int InfluxDB_Server_Port = 8086;
 const char* InfluxDB_Database = "MESSCONTAINER";
 
+int conState = 0;
 //GPS Variablen
 String latitude, longitude, Geohash, Position;
 
@@ -76,7 +77,13 @@ Adafruit_ADS1115 ads1015(0x4A);
 
 // Umrechnung der 16Bit Werte des ADS1115 mit dem entsprechenden GAIN abhängigen Faktor
 float Umrechnungsfaktor;
-String Daten;
+String Daten, serverResponse;
+
+char incomingChar;
+int  gpsUpdated=0;
+
+float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
+float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 
 // String getGPS(){
 //   gps.encode(Serial.read());
@@ -118,7 +125,7 @@ void WiFiStart(){
 }
 void Verbindungstest(){
   // Verbindungstest zum InfluxSB Server
-  int conState = client.connect(InfluxDB_Server_IP, InfluxDB_Server_Port);
+  conState = client.connect(InfluxDB_Server_IP, InfluxDB_Server_Port);
   // Verbindung erfolgreich
   if (conState > 0) {
     Serial.println("Verbindung zum InfluxDB Server hergestellt");
@@ -131,13 +138,12 @@ void Verbindungstest(){
   }
 }
 String Messung(String Postionsstring){
-  float adc0, adc1, adc2, adc3;
   float SN1_Integral = 0;
   float SN2_Integral = 0;
   float SN3_Integral = 0;
   float TEMP_Integral = 0;
 
-  float adc0_AE, adc1_AE, adc2_AE, adc3_AE;
+
   float SN1_AE_Integral = 0;
   float SN2_AE_Integral = 0;
   float SN3_AE_Integral = 0;
@@ -185,14 +191,7 @@ void Upload(String Uploadstring){
 
   //send to InfluxDB
   // Verbindungstest mit dem InfluxDB Server connect() liefert bool false / true als return
-  int Verbindungsstatus = client.connect(InfluxDB_Server_IP, InfluxDB_Server_Port);
-
-  // Kann keine Verbindung hergestellt werden -> Fehlerausgabe incl. Fehlernummer
-  if(Verbindungsstatus <= 0) {
-    Serial.print("Keine Verbindung zum InfluxDB Server, Error #");
-    Serial.println(Verbindungsstatus);
-    return;
-  }
+  conState = client.connect(InfluxDB_Server_IP, InfluxDB_Server_Port);
 
   //Sende HTTP Header und Buffer
   if (millis()-time>=WarmUp) {
@@ -209,12 +208,63 @@ void Upload(String Uploadstring){
 
     // Antwort des Servers wird gelesen, ausgegeben und anschließend die Verbindung geschlossen
     Serial.println("Antwort des Servers");
+    serverResponse= "";
     while(client.available()) { // Empfange Antwort
-      Serial.print((char)client.read());
+      incomingChar=char(client.read());
+      serverResponse += incomingChar;
     }
   }
   Serial.println();
   client.stop();
+}
+void updatedisplay(){
+
+    String whiteSpace = "    ";
+    //tft.fillScreen(ILI9341_BLACK); // clearscreen
+
+    tft.setCursor(0,0);
+
+    //Connection Status
+    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    tft.println("Connection-Status");
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.print("conState: "); tft.println(conState + whiteSpace);
+
+    // GPS-location
+    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    tft.println("GPS-location");
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.print("lon: "); tft.println(longitude + whiteSpace);
+    tft.print("lat: "); tft.println(latitude + whiteSpace);
+    tft.print("#: "); tft.println(Geohash + whiteSpace);
+    //tft.print("isUpdated: "); tft.println(gps.location.isUpdated() + whiteSpace);
+    tft.print("isValid: "); tft.println(gps.location.isValid() + whiteSpace);
+    tft.print("gpsUpdated: "); tft.println(gpsUpdated + whiteSpace);
+
+    // adc values
+    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    tft.println("ADC-values");
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.print("adc0: "); tft.println(adc0 + whiteSpace);
+    tft.print("adc1: "); tft.println(adc1 + whiteSpace);
+    tft.print("adc2: "); tft.println(adc2 + whiteSpace);
+    tft.print("adc3: "); tft.println(adc3 + whiteSpace);
+    tft.print("adc0_AE: "); tft.println(adc0_AE + whiteSpace);
+    tft.print("adc1_AE: "); tft.println(adc1_AE + whiteSpace);
+    tft.print("adc2_AE: "); tft.println(adc2_AE + whiteSpace);
+
+    // Data String
+    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    tft.println("Data String");
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.print("Data: "); tft.println(Daten + whiteSpace + whiteSpace);
+
+    // serverResponse
+    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    tft.println("Server Response");
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.print("serverResponse: "); tft.println(serverResponse + whiteSpace);
+
 }
 void setup() {
   Serial.begin(9600);
@@ -231,14 +281,16 @@ void setup() {
 //  tft.setCursor(0,0);
 
  tft.begin();
+ tft.fillScreen(ILI9341_BLACK);
+ tft.setTextColor(ILI9341_WHITE); tft.setTextSize(1);
+ tft.println("Starting wifimanager...");
 
   WiFiStart();
 
   //if you get here you have connected to the WiFi
 
-  tft.fillScreen(ILI9341_BLACK);
-  tft.setTextColor(ILI9341_GREEN); tft.setTextSize(1);
-  tft.println("Verbindung hergestellt");
+  tft.setTextColor(ILI9341_GREEN);
+  tft.println("Wifi Verbindung hergestellt");
   tft.setTextColor(ILI9341_WHITE);
   tft.print("IP:"); tft.println(WiFi.localIP());
   delay(1000);
@@ -246,28 +298,26 @@ void setup() {
 
   time = millis();
 
-
+  tft.fillScreen(ILI9341_BLACK);
 }
 
 void loop() {
-  tft.fillScreen(ILI9341_BLACK);
-  tft.setCursor(0,0);
+gpsUpdated = 0;
+
   while (Serial.available()){
     gps.encode(Serial.read());
-    if (gps.location.isUpdated()){
+    if (gps.location.isValid()){
       latitude = String(gps.location.lat(),6);
       longitude = String(gps.location.lng(),6);
       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
       Position = "geohash="+ Geohash + " lat=" + latitude + ",lng=" + longitude;
+      gpsUpdated = 1;
     }
   }
 
-  tft.println(Position);
-
-
+  // tft.println(Position);
   Daten = Messung(Position);
-
-  tft.println(Daten);
-
+  //tft.println(Daten);
   Upload(Daten);
+  updatedisplay();
 }
