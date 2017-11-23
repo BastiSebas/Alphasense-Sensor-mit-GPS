@@ -1,5 +1,3 @@
-#include <Arduino.h>
-
 //WiFi libs
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>            //Local DNS Server used for redirecting all requests to the configuration portal
@@ -27,11 +25,23 @@ char MEASUREMENT_NAME[34] = "alphasense";
 const char* AutoConnectAPName = "AutoConnectAP";
 const char* AutoConnectAPPW = "password";
 
-// OLED libs
+// Display libs
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#define OLED_RESET 4
-Adafruit_SSD1306 display(LED_BUILTIN);
+
+// Mit TFT
+#include "SPI.h"
+#include "Adafruit_ILI9341.h"
+#define TFT_DC 2
+#define TFT_CS 16
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC); //, TFT_MOSI, TFT_CLK);
+
+// If using the breakout, change pins as desired
+//Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
+
+// Mit OLED
+//#include <Adafruit_SSD1306.h>
+//#define OLED_RESET 4
+//Adafruit_SSD1306 tft(LED_BUILTIN);
 
 // Config Messung
 const int MessInterval = 5000; // Zeit in ms zwischen den einzelnen gemittelten Messwerten
@@ -78,7 +88,7 @@ String Daten;
 //       longitude = String(gps.location.lng(),6);
 //       String GPSString = "geohash=" + String(geohash)+" lat=" + latitude + ",lng=" + longitude;
 //       Serial.println(GPSString);
-//       display.println(GPSString);
+//       tft.println(GPSString);
 //       return GPSString;
 //     }
 //   }
@@ -214,34 +224,34 @@ void setup() {
   ads.begin();
   ads1015.begin();
 
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
+//tft.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
+//
+//  tft.setTextSize(1);
+//  tft.setTextColor(WHITE);
+//  tft.setCursor(0,0);
+
+ tft.begin();
 
   WiFiStart();
 
   //if you get here you have connected to the WiFi
-  display.print("Verbindung hergestellt");
-  display.display();
+
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setTextColor(ILI9341_GREEN); tft.setTextSize(1);
+  tft.println("Verbindung hergestellt");
+  tft.setTextColor(ILI9341_WHITE);
+  tft.print("IP:"); tft.println(WiFi.localIP());
   delay(1000);
-  display.clearDisplay();
-  display.println("Connected!");
-  display.println(" ");
-  display.println("IP:");
-  display.println(WiFi.localIP());
-  display.println(" ");
-  display.print("Searching satellites");
-  display.display();
+  tft.print("Searching satellites");
+
   time = millis();
-  display.clearDisplay();
-  display.display();
+
+
 }
 
 void loop() {
-  display.clearDisplay();
-  display.setCursor(0,0);
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setCursor(0,0);
   while (Serial.available()){
     gps.encode(Serial.read());
     if (gps.location.isUpdated()){
@@ -252,12 +262,12 @@ void loop() {
     }
   }
 
-  display.println(Position);
-  display.display();
+  tft.println(Position);
+
 
   Daten = Messung(Position);
-  display.clearDisplay();
-  display.println(Daten);
-  display.display();
+
+  tft.println(Daten);
+
   Upload(Daten);
 }
