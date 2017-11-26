@@ -66,7 +66,7 @@ const char* InfluxDB_Database = "MESSCONTAINER";
 
 int conState = 0;
 //GPS Variablen
-String latitude, longitude, Geohash, Position;
+String latitude, longitude, Geohash, Position,last_lat, last_lng;
 
 
 // Initialisiert WiFiClient als "client"
@@ -81,7 +81,7 @@ float Umrechnungsfaktor;
 String Daten, serverResponse;
 
 char incomingChar; // Dummy variable um Serverresponse zu lesen, aufs Display auszugeben und ggf. auf Serial auszugeben.
-int  gpsIsUpdated=0,gpsIsValid=0,gpsifTriggered=0, gpsAge=0, gpsSpeed =0; // Debugvariablen fuer das GPS
+int  gpsIsUpdated=0, gpsIsValid=0, gpsIfTriggered=0, gpsAge=0, gpsSpeed=0; // Debugvariablen fuer das GPS
 
 float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
 float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
@@ -109,7 +109,7 @@ void color(String color){  // fuer schnellen Farbwechsel
   if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
 }
 
-void linefeed(){tft.println("");} // eine Leerzeile auf dem Display erzeugen
+void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
 
 float getUmrechnungsfaktor(){
   float Faktor;
@@ -237,7 +237,7 @@ void updateDisplay(){
 
     //Connection Status
     color("yellow");
-    tft.println("Connection-Status");
+    tft.println("Connection Status");
     color("white");
     tft.print("Uplink: ");
     if(conState == 1 ){ color("green"); tft.println("Connected" + whiteSpace); color("white");}
@@ -249,7 +249,7 @@ void updateDisplay(){
     tft.println("GPS-location");
     color("white");
     tft.print("Location: ");
-    if(gpsAge < 10000){ color("green"); tft.println("fixed" + whiteSpace); color("white");}
+    if(gpsAge < 10000 && gpsIsValid==1){ color("green"); tft.println("fixed" + whiteSpace); color("white");}
     else {color("red"); tft.println("not fixed" + whiteSpace); color("white");}
 
     tft.print("lon: "); tft.println(longitude + whiteSpace);
@@ -258,7 +258,7 @@ void updateDisplay(){
     tft.print("gpsIsUpdated: "); tft.println(gpsIsUpdated + whiteSpace);
     tft.print("gpsIsValid: "); tft.println(gpsIsValid + whiteSpace);
     tft.print("gpsAge: "); tft.println(gpsAge + whiteSpace);
-    tft.print("gpsifTriggered: "); tft.println(gpsifTriggered + whiteSpace);
+    tft.print("gpsIfTriggered: "); tft.println(gpsIfTriggered + whiteSpace);
     tft.print("gpsSpeed: "); tft.println(gpsSpeed + whiteSpace);
     linefeed();
 
@@ -325,19 +325,30 @@ void setup() {
 
 void loop() {
 
-  gpsifTriggered = 0;
+  gpsIfTriggered = 0;
   while (Serial.available()){
     gps.encode(Serial.read());
-    gpsIsUpdated   = gps.location.isUpdated();
+    // gpsIsUpdated   = gps.location.isUpdated();
     gpsIsValid     = gps.location.isValid();
     gpsAge         = gps.location.age();
 
     if (gps.location.isValid()){
+
+      gpsIfTriggered = 1;
       latitude = String(gps.location.lat(),6);
       longitude = String(gps.location.lng(),6);
+
+       if ((longitude != last_lng) or (latitude != last_lat)){
+         gpsIsUpdated = 1;
+       }
+       else{
+         gpsIsUpdated = 0;
+       }
+      last_lat = latitude;
+      last_lng = longitude;
+
       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
       Position = "geohash="+ Geohash + " lat=" + latitude + ",lng=" + longitude;
-      gpsifTriggered = 1;
     }
   }
 
