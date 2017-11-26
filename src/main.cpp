@@ -4,6 +4,8 @@
 #include <ESP8266WebServer.h>     //Local WebServer used to serve the configuration portal
 #include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 
+#define DISPLAY_TYPE TFT // Zum Umschalten zwischen OLED und TFT Ausgabe
+
 //ADS 1115 libs
 #include <Adafruit_ADS1015.h>
 
@@ -29,19 +31,24 @@ const char* AutoConnectAPPW = "password";
 #include <Adafruit_GFX.h>
 
 // Mit TFT
-#include "SPI.h"
-#include "Adafruit_ILI9341.h"
-#define TFT_DC 2
-#define TFT_CS 16
-Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC); //, TFT_MOSI, TFT_CLK);
+#if (DISPLAY_TYPE == TFT)
+  #include "SPI.h"
+  #include "Adafruit_ILI9341.h"
+  #define TFT_DC 2
+  #define TFT_CS 16
+  Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC); //, TFT_MOSI, TFT_CLK);
+#endif
 
 // If using the breakout, change pins as desired
 //Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
 
 // Mit OLED
-//#include <Adafruit_SSD1306.h>
-//#define OLED_RESET 4
-//Adafruit_SSD1306 tft(LED_BUILTIN);
+#if (DISPLAY_TYPE == OLED)
+  #include <Adafruit_SSD1306.h>
+  #define OLED_RESET 4
+  Adafruit_SSD1306 oled(LED_BUILTIN);
+  void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
+#endif
 
 // Config Messung
 const int MessInterval = 2000; // Zeit in ms zwischen den einzelnen gemittelten Messwerten
@@ -66,7 +73,7 @@ const char* InfluxDB_Database = "MESSCONTAINER";
 
 int conState = 0;
 //GPS Variablen
-String latitude, longitude, Geohash, Position;
+String latitude, longitude, Geohash, Position,last_lat, last_lng;
 
 
 // Initialisiert WiFiClient als "client"
@@ -81,35 +88,20 @@ float Umrechnungsfaktor;
 String Daten, serverResponse;
 
 char incomingChar; // Dummy variable um Serverresponse zu lesen, aufs Display auszugeben und ggf. auf Serial auszugeben.
-int  gpsIsUpdated=0,gpsIsValid=0,gpsifTriggered=0, gpsAge=0, gpsSpeed =0; // Debugvariablen fuer das GPS
+int  gpsIsUpdated=0, gpsIsValid=0, gpsIfTriggered=0, gpsAge=0, gpsSpeed=0; // Debugvariablen fuer das GPS
 
 float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
 float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 
-// String getGPS(){
-//   gps.encode(Serial.read());
-//     if(gps.location.isUpdated()){
-//       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
-//       const char* geohash = hasher.encode(gps.location.lat(), gps.location.lng());
-//       Serial.println(geohash);
-//       latitude = String(gps.location.lat(),6);
-//       longitude = String(gps.location.lng(),6);
-//       String GPSString = "geohash=" + String(geohash)+" lat=" + latitude + ",lng=" + longitude;
-//       Serial.println(GPSString);
-//       tft.println(GPSString);
-//       return GPSString;
-//     }
-//   }
-
-void color(String color){  // fuer schnellen Farbwechsel
-  if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  if (color == "green") tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
-  if (color == "yellow") tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-  if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
-  if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
-}
-
-void linefeed(){tft.println("");} // eine Leerzeile auf dem Display erzeugen
+#if (DISPLAY_TYPE == TFT)
+  void color(String color){  // fuer schnellen Farbwechsel
+    if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    if (color == "green") tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
+    if (color == "yellow") tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
+    if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
+  }
+#endif
 
 float getUmrechnungsfaktor(){
   float Faktor;
@@ -152,7 +144,6 @@ String Messung(String Postionsstring){
   float SN2_Integral = 0;
   float SN3_Integral = 0;
   float TEMP_Integral = 0;
-
 
   float SN1_AE_Integral = 0;
   float SN2_AE_Integral = 0;
@@ -228,16 +219,15 @@ void Upload(String Uploadstring){
   client.stop();
 }
 
-void updateDisplay(){
-
+#if (DISPLAY_TYPE == TFT)
+  void updateDisplay(){
     String whiteSpace = "    ";
     //tft.fillScreen(ILI9341_BLACK); // clearscreen
-
     tft.setCursor(0,0);
 
     //Connection Status
     color("yellow");
-    tft.println("Connection-Status");
+    tft.println("Connection Status");
     color("white");
     tft.print("Uplink: ");
     if(conState == 1 ){ color("green"); tft.println("Connected" + whiteSpace); color("white");}
@@ -249,7 +239,7 @@ void updateDisplay(){
     tft.println("GPS-location");
     color("white");
     tft.print("Location: ");
-    if(gpsAge < 10000){ color("green"); tft.println("fixed" + whiteSpace); color("white");}
+    if(gpsAge < 10000 && gpsIsValid==1){ color("green"); tft.println("fixed" + whiteSpace); color("white");}
     else {color("red"); tft.println("not fixed" + whiteSpace); color("white");}
 
     tft.print("lon: "); tft.println(longitude + whiteSpace);
@@ -258,7 +248,7 @@ void updateDisplay(){
     tft.print("gpsIsUpdated: "); tft.println(gpsIsUpdated + whiteSpace);
     tft.print("gpsIsValid: "); tft.println(gpsIsValid + whiteSpace);
     tft.print("gpsAge: "); tft.println(gpsAge + whiteSpace);
-    tft.print("gpsifTriggered: "); tft.println(gpsifTriggered + whiteSpace);
+    tft.print("gpsIfTriggered: "); tft.println(gpsIfTriggered + whiteSpace);
     tft.print("gpsSpeed: "); tft.println(gpsSpeed + whiteSpace);
     linefeed();
 
@@ -287,7 +277,9 @@ void updateDisplay(){
     color("white");
     tft.print("serverResponse: "); tft.println(serverResponse + whiteSpace);
     linefeed();
-}
+  }
+#endif
+
 void setup() {
   Serial.begin(9600);
   // Startet Kommunikation mit IDC über Port 4 und 5 auf ESP8266 und setzt Gain des ADCs
@@ -296,48 +288,76 @@ void setup() {
   ads.begin();
   ads1015.begin();
 
-//tft.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
-//
-//  tft.setTextSize(1);
-//  tft.setTextColor(WHITE);
-//  tft.setCursor(0,0);
+  #if (DISPLAY_TYPE == OLED)
+    oled.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
+    oled.setTextSize(1);
+    oled.setTextColor(WHITE);
+    oled.setCursor(0,0);
+  #endif
 
- tft.begin();
- tft.fillScreen(ILI9341_BLACK);
- tft.setTextColor(ILI9341_WHITE); tft.setTextSize(1);
- tft.println("Starting wifimanager...");
+  #if (DISPLAY_TYPE == TFT)
+    tft.begin();
+    tft.fillScreen(ILI9341_BLACK);
+    tft.setTextColor(ILI9341_WHITE); tft.setTextSize(1);
+    tft.println("Starting wifimanager...");
+  #endif
 
   WiFiStart();
 
   //if you get here you have connected to the WiFi
+  #if (DISPLAY_TYPE == TFT)
+    tft.setTextColor(ILI9341_GREEN);
+    tft.println("Wifi Verbindung hergestellt");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.print("IP:"); tft.println(WiFi.localIP());
+  #endif
 
-  tft.setTextColor(ILI9341_GREEN);
-  tft.println("Wifi Verbindung hergestellt");
-  tft.setTextColor(ILI9341_WHITE);
-  tft.print("IP:"); tft.println(WiFi.localIP());
+  #if (DISPLAY_TYPE == OLED)
+    oled.println("Wifi Verbindung hergestellt");
+    oled.print("IP:");
+    oled.println(WiFi.localIP());
+  #endif
+
   delay(1000);
-  tft.print("Searching satellites");
+
+  #if (DISPLAY_TYPE == TFT)
+    tft.print("Searching satellites");
+    tft.fillScreen(ILI9341_BLACK);
+  #endif
+
+  #if (DISPLAY_TYPE == OLED)
+    oled.print("Searching satellites");
+  #endif
 
   time = millis();
-
-  tft.fillScreen(ILI9341_BLACK);
 }
 
 void loop() {
 
-  gpsifTriggered = 0;
+  gpsIfTriggered = 0;
   while (Serial.available()){
     gps.encode(Serial.read());
-    gpsIsUpdated   = gps.location.isUpdated();
+    // gpsIsUpdated   = gps.location.isUpdated();
     gpsIsValid     = gps.location.isValid();
     gpsAge         = gps.location.age();
 
     if (gps.location.isValid()){
+
+      gpsIfTriggered = 1;
       latitude = String(gps.location.lat(),6);
       longitude = String(gps.location.lng(),6);
+
+       if ((longitude != last_lng) or (latitude != last_lat)){
+         gpsIsUpdated = 1;
+       }
+       else{
+         gpsIsUpdated = 0;
+       }
+      last_lat = latitude;
+      last_lng = longitude;
+
       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
       Position = "geohash="+ Geohash + " lat=" + latitude + ",lng=" + longitude;
-      gpsifTriggered = 1;
     }
   }
 
