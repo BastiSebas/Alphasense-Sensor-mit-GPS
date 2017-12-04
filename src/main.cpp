@@ -93,6 +93,7 @@ int  gpsIsUpdated=0, gpsIsValid=0, gpsIfTriggered=0, gpsAge=0, gpsSpeed=0; // De
 float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
 float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 
+<<<<<<< HEAD
 #if (DISPLAY_TYPE == TFT)
   void color(String color){  // fuer schnellen Farbwechsel
     if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
@@ -102,6 +103,32 @@ float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
     if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
   }
 #endif
+=======
+// String getGPS(){
+//   gps.encode(Serial.read());
+//     if(gps.location.isUpdated()){
+//       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
+//       const char* geohash = hasher.encode(gps.location.lat(), gps.location.lng());
+//       Serial.println(geohash);
+//       latitude = String(gps.location.lat(),6);
+//       longitude = String(gps.location.lng(),6);
+//       String GPSString = "geohash=" + String(geohash)+" lat=" + latitude + ",lng=" + longitude;
+//       Serial.println(GPSString);
+//       tft.println(GPSString);
+//       return GPSString;
+//     }
+//   }
+
+void color(String color){  // fuer schnellen Farbwechsel
+  if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+  if (color == "green") tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
+  if (color == "yellow") tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+  if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
+  if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
+}
+
+void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
+>>>>>>> 87a6f2d53dd8c25672fb57425e224ba7bf1a903d
 
 float getUmrechnungsfaktor(){
   float Faktor;
