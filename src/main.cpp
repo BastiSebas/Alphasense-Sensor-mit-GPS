@@ -1,8 +1,25 @@
+#include <Arduino.h>
+
 //WiFi libs
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>            //Local DNS Server used for redirecting all requests to the configuration portal
 #include <ESP8266WebServer.h>     //Local WebServer used to serve the configuration portal
 #include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
+
+// File System libs
+#include <FS.h>
+#include <ArduinoJson.h>
+
+
+//Wifimanager Parameterübergabe
+//flag for saving data
+bool shouldSaveConfig = false;
+
+//callback notifying us of the need to save config
+void saveConfigCallback () {
+  // Serial.println("Should save config");
+  shouldSaveConfig = true;
+}
 
 #define DISPLAY_TYPE TFT // Zum Umschalten zwischen OLED und TFT Ausgabe
 
@@ -93,7 +110,6 @@ int  gpsIsUpdated=0, gpsIsValid=0, gpsIfTriggered=0, gpsAge=0, gpsSpeed=0; // De
 float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
 float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 
-<<<<<<< HEAD
 #if (DISPLAY_TYPE == TFT)
   void color(String color){  // fuer schnellen Farbwechsel
     if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
@@ -103,32 +119,6 @@ float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
     if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
   }
 #endif
-=======
-// String getGPS(){
-//   gps.encode(Serial.read());
-//     if(gps.location.isUpdated()){
-//       Geohash = hasher.encode(gps.location.lat(), gps.location.lng());
-//       const char* geohash = hasher.encode(gps.location.lat(), gps.location.lng());
-//       Serial.println(geohash);
-//       latitude = String(gps.location.lat(),6);
-//       longitude = String(gps.location.lng(),6);
-//       String GPSString = "geohash=" + String(geohash)+" lat=" + latitude + ",lng=" + longitude;
-//       Serial.println(GPSString);
-//       tft.println(GPSString);
-//       return GPSString;
-//     }
-//   }
-
-void color(String color){  // fuer schnellen Farbwechsel
-  if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  if (color == "green") tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
-  if (color == "yellow") tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-  if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
-  if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
-}
-
-void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
->>>>>>> 87a6f2d53dd8c25672fb57425e224ba7bf1a903d
 
 float getUmrechnungsfaktor(){
   float Faktor;
@@ -164,6 +154,100 @@ void Verbindungstest(){
   else {
     Serial.print("Keine Verbindung zum InfluxDB Server, Error #");
     Serial.println(conState);
+  }
+}
+
+void WifiParameterstart(){
+  if (SPIFFS.begin()) {
+    // Serial.println("mounted file system");
+    if (SPIFFS.exists("/config.json")) {
+      //file exists, reading and loading
+      // Serial.println("reading config file");
+      File configFile = SPIFFS.open("/config.json", "r");
+      if (configFile) {
+        // Serial.println("opened config file");
+        size_t size = configFile.size();
+        // Allocate a buffer to store contents of the file.
+        std::unique_ptr<char[]> buf(new char[size]);
+
+        configFile.readBytes(buf.get(), size);
+        DynamicJsonBuffer jsonBuffer;
+        JsonObject& json = jsonBuffer.parseObject(buf.get());
+        json.printTo(Serial);
+        if (json.success()) {
+          Serial.println("\nparsed json");
+          strcpy(MEASUREMENT_NAME, json["MEASUREMENT_NAME"]);
+        }
+        else {
+          Serial.println("failed to load json config");
+        }
+      }
+    }
+  }
+  else {
+    Serial.println("failed to mount FS");
+  }
+  //end read
+
+
+  // The extra parameters to be configured (can be either global or just in the setup)
+  // After connecting, parameter.getValue() will get you the configured value
+  // id/name placeholder/prompt default length
+  WiFiManagerParameter custom_MEASUREMENT_NAME("Measurement", "MEASUREMENT_NAME", MEASUREMENT_NAME, 32);
+
+  //WiFiManager
+  //Local intialization. Once its business is done, there is no need to keep it around
+  WiFiManager wifiManager;
+
+  //set config save notify callback
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+  //set static ip
+
+  //add all your parameters here
+  wifiManager.addParameter(&custom_MEASUREMENT_NAME);
+
+  //sets timeout until configuration portal gets turned off
+  //useful to make it all retry or go to sleep
+  //in seconds
+  //wifiManager.setTimeout(120);
+
+  //fetches ssid and pass and tries to connect
+  //if it does not connect it starts an access point with the specified name
+  //here  "AutoConnectAP"
+  //and goes into a blocking loop awaiting configuration
+  if (!wifiManager.autoConnect(AutoConnectAPName, AutoConnectAPPW)) {
+    // Serial.println("failed to connect and hit timeout");
+    delay(3000);
+    //reset and try again, or maybe put it to deep sleep
+    ESP.reset();
+    delay(5000);
+  }
+
+  //if you get here you have connected to the WiFi
+  oled.print("Verbindung hergestellt");
+  oled.display();
+  delay(1000);
+
+  //read updated parameters
+  strcpy(MEASUREMENT_NAME, custom_MEASUREMENT_NAME.getValue());
+
+  //save the custom parameters to FS
+  if (shouldSaveConfig) {
+    Serial.println("saving config");
+    DynamicJsonBuffer jsonBuffer;
+    JsonObject& json = jsonBuffer.createObject();
+    json["MEASUREMENT_NAME"] = MEASUREMENT_NAME;
+
+    File configFile = SPIFFS.open("/config.json", "w");
+    if (!configFile) {
+      Serial.println("failed to open config file for writing");
+    }
+
+    json.printTo(Serial);
+    json.printTo(configFile);
+    configFile.close();
+    //end save
   }
 }
 String Messung(String Postionsstring){
@@ -329,7 +413,7 @@ void setup() {
     tft.println("Starting wifimanager...");
   #endif
 
-  WiFiStart();
+  WifiParameterstart();
 
   //if you get here you have connected to the WiFi
   #if (DISPLAY_TYPE == TFT)
