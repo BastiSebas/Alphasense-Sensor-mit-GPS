@@ -4,7 +4,7 @@
 #include <ESP8266WebServer.h>     //Local WebServer used to serve the configuration portal
 #include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 
-#define DISPLAY_TYPE TFT // Zum Umschalten zwischen OLED und TFT Ausgabe
+#define DISPLAY_TYPE OLED // Zum Umschalten zwischen OLED und TFT Ausgabe
 
 //ADS 1115 libs
 #include <Adafruit_ADS1015.h>
@@ -23,7 +23,7 @@ TinyGPSPlus gps;
 GeoHash hasher(8);
 
 // Wifi Config
-char MEASUREMENT_NAME[34] = "alphasense";
+char MEASUREMENT_NAME[34] = "mobil_test";
 const char* AutoConnectAPName = "AutoConnectAP";
 const char* AutoConnectAPPW = "password";
 
@@ -47,7 +47,6 @@ const char* AutoConnectAPPW = "password";
   #include <Adafruit_SSD1306.h>
   #define OLED_RESET 4
   Adafruit_SSD1306 oled(LED_BUILTIN);
-  void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
 #endif
 
 // Config Messung
@@ -93,7 +92,7 @@ int  gpsIsUpdated=0, gpsIsValid=0, gpsIfTriggered=0, gpsAge=0, gpsSpeed=0; // De
 float adc0, adc1, adc2, adc3;                 // globale ADC Variablen
 float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 
-<<<<<<< HEAD
+
 #if (DISPLAY_TYPE == TFT)
   void color(String color){  // fuer schnellen Farbwechsel
     if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
@@ -102,8 +101,9 @@ float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
     if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
     if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
   }
+  void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
 #endif
-=======
+
 // String getGPS(){
 //   gps.encode(Serial.read());
 //     if(gps.location.isUpdated()){
@@ -119,16 +119,6 @@ float adc0_AE, adc1_AE, adc2_AE, adc3_AE;     // fuer Ausgabe am Display
 //     }
 //   }
 
-void color(String color){  // fuer schnellen Farbwechsel
-  if (color == "white") tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  if (color == "green") tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
-  if (color == "yellow") tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-  if (color == "red") tft.setTextColor(ILI9341_RED, ILI9341_BLACK);
-  if (color == "blue") tft.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
-}
-
-void linefeed(){tft.println("                       ");} // eine Leerzeile auf dem Display erzeugen
->>>>>>> 87a6f2d53dd8c25672fb57425e224ba7bf1a903d
 
 float getUmrechnungsfaktor(){
   float Faktor;
